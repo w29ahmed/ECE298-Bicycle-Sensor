@@ -50,29 +50,59 @@ void main(void)
     //All done initializations - turn interrupts back on.
     __enable_interrupt();
 
-    displayScrollText("ECE 298");
+//    displayScrollText("ECE 298");
+//    while(1) //Do this when you want an infinite loop of code
+//    {
+//        //Buttons SW1 and SW2 are active low (1 until pressed, then 0)
+//        if ((GPIO_getInputPinValue(SW1_PORT, SW1_PIN) == 1) & (buttonState == 0)) //Look for rising edge
+//        {
+//            Timer_A_stop(TIMER_A0_BASE);    //Shut off PWM signal
+//            buttonState = 1;                //Capture new button state
+//        }
+//        if ((GPIO_getInputPinValue(SW1_PORT, SW1_PIN) == 0) & (buttonState == 1)) //Look for falling edge
+//        {
+//            Timer_A_outputPWM(TIMER_A0_BASE, &param);   //Turn on PWM
+//            buttonState = 0;                            //Capture new button state
+//        }
+//
+//        //Start an ADC conversion (if it's not busy) in Single-Channel, Single Conversion Mode
+//        if (ADCState == 0)
+//        {
+//            showHex((int)ADCResult); //Put the previous result on the LCD display
+//            ADCState = 1; //Set flag to indicate ADC is busy - ADC ISR (interrupt) will clear it
+//            ADC_startConversion(ADC_BASE, ADC_SINGLECHANNEL);
+//        }
+//    }
 
-    while(1) //Do this when you want an infinite loop of code
-    {
-        //Buttons SW1 and SW2 are active low (1 until pressed, then 0)
-        if ((GPIO_getInputPinValue(SW1_PORT, SW1_PIN) == 1) & (buttonState == 0)) //Look for rising edge
-        {
-            Timer_A_stop(TIMER_A0_BASE);    //Shut off PWM signal
-            buttonState = 1;                //Capture new button state
-        }
-        if ((GPIO_getInputPinValue(SW1_PORT, SW1_PIN) == 0) & (buttonState == 1)) //Look for falling edge
-        {
-            Timer_A_outputPWM(TIMER_A0_BASE, &param);   //Turn on PWM
-            buttonState = 0;                            //Capture new button state
-        }
+    // Set pin 2.7 as the output pin for the ultrasonic Trig signal
+    GPIO_setAsOutputPin(GPIO_PORT_P2, GPIO_PIN7);
 
-        //Start an ADC conversion (if it's not busy) in Single-Channel, Single Conversion Mode
-        if (ADCState == 0)
-        {
-            showHex((int)ADCResult); //Put the previous result on the LCD display
-            ADCState = 1; //Set flag to indicate ADC is busy - ADC ISR (interrupt) will clear it
-            ADC_startConversion(ADC_BASE, ADC_SINGLECHANNEL);
-        }
+    // Set pin 2.5 as the input pin for the ultrasonic Echo signal
+    GPIO_setAsInputPin(GPIO_PORT_P2, GPIO_PIN5);
+
+    // Set interrupts
+    GPIO_enableInterrupt(GPIO_PORT_P2, GPIO_PIN5);
+    GPIO_selectInterruptEdge(GPIO_PORT_P2, GPIO_PIN5, GPIO_HIGH_TO_LOW_TRANSITION | GPIO_LOW_TO_HIGH_TRANSITION);
+
+//    displayScrollText("HELLO SIR 123");
+//    char test = 'W';
+    showChar(digit[], 1);
+    showHex(0x0);
+    while (1) {
+
+        // Set digital high on pin 2.7 (Trig)
+        GPIO_setOutputHighOnPin(GPIO_PORT_P2, GPIO_PIN7);
+
+        // The MSP430 FR4133 has a 16 MHz CPU
+        // Delay of 160 cycles gives translates to 10 us
+        __delay_cycles(160);
+
+        // Set digital low on pin 2.7 (Trig)
+        GPIO_setOutputLowOnPin(GPIO_PORT_P2, GPIO_PIN7);
+
+        // get input pin value from pin 2.5
+        uint8_t echoVal = GPIO_getInputPinValue(GPIO_PORT_P2, GPIO_PIN5);
+//        showChar(echoVal, 0);
     }
 
     /*
@@ -86,6 +116,27 @@ void main(void)
     */
 
 }
+
+#pragma vector=PORT2_VECTOR
+__interrupt void Port_2(void)
+{
+    if(P1IFG&0x04)  //is there interrupt pending?
+        {
+          if(!(P1IES&0x04)) // is this the rising edge?
+          {
+            TACTL|=TACLR;   // clears timer A
+            miliseconds = 0;
+            P1IES |= 0x04;  //falling edge
+          }
+          else
+          {
+            sensor = (long)miliseconds*1000 + (long)TAR;    //calculating ECHO lenght
+
+          }
+    P1IFG &= ~0x04;             //clear flag
+    }
+}
+
 
 void Init_GPIO(void)
 {
