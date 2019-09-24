@@ -10,7 +10,8 @@
 char ADCState = 0; //Busy state of the ADC
 int16_t ADCResult = 0; //Storage for the ADC conversion result
 
-uint16_t count_us = 0;
+int count_us;
+int distance_cm;
 
 void main(void)
 {
@@ -56,8 +57,14 @@ void main(void)
     P2IE  = 0x00;
     P2IFG  = 0x00;
 
-    // Clear timer A
-    Timer_A_clear(TA0CTL);
+    // Start timer A in continuous mode sourced by SMCLK
+    Timer_A_initContinuousModeParam initContParam = {0};
+    initContParam.clockSource = TIMER_A_CLOCKSOURCE_SMCLK;
+    initContParam.clockSourceDivider = TIMER_A_CLOCKSOURCE_DIVIDER_1;
+    initContParam.timerInterruptEnable_TAIE = TIMER_A_TAIE_INTERRUPT_DISABLE;
+    initContParam.timerClear = TIMER_A_DO_CLEAR;
+    initContParam.startTimer = false;
+    Timer_A_initContinuousMode(TIMER_A0_BASE, &initContParam);
 
     // Set pin 2.7 as the output pin for the ultrasonic Trig signal
     GPIO_setAsOutputPin(GPIO_PORT_P2, GPIO_PIN7);
@@ -82,7 +89,7 @@ void main(void)
 
         // Maybe put a delay here to allow the ultrasonic beams to be sent out
         // 1s delay
-        __delay_cycles(16000000);
+        //__delay_cycles(16000000);
     }
 }
 
@@ -110,8 +117,8 @@ __interrupt void Port_2_ISR(void)
             // Rising edge interrupt
 
             // Reset and start timer A
-            Timer_A_clear(TA0CTL);
-            Timer_A_startCounter(TA0CTL, TIMER_A_CONTINUOUS_MODE);
+            Timer_A_clear(TIMER_A0_BASE);
+            Timer_A_startCounter(TIMER_A0_BASE, TIMER_A_CONTINUOUS_MODE);
 
             // Change interrupt edge to falling
             P2IES |= 0x20;
@@ -119,15 +126,14 @@ __interrupt void Port_2_ISR(void)
         else {
             // Falling edge interrupt
 
-            // Calculate length of echo pulse based off timer's value
-
             // Stop timer A
-            Timer_A_stop(TA0CTL);
+            Timer_A_stop(TIMER_A0_BASE);
 
             // Read timer A count, which will give us the # of clock cycles passed since it
             // stared. With a 16 MHz clock, we divide count by 16 to get us the number of
             // microseconds passed since the timer started, which is the width of the echo pulse
-            count_us = Timer_A_getCounterValue(TA0CTL) / 16;
+            count_us = Timer_A_getCounterValue(TIMER_A0_BASE) / 16;
+            distance_cm = count_us/58;
             showHex(count_us/58);
 
             // Change interrupt edge to rising
