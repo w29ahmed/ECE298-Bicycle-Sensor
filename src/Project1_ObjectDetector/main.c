@@ -10,6 +10,10 @@
 char ADCState = 0; //Busy state of the ADC
 int16_t ADCResult = 0; //Storage for the ADC conversion result
 
+int miliseconds;
+int distance;
+long sensor;
+
 void main(void)
 {
     char buttonState = 0; //Current button press state (to allow edge detection)
@@ -82,12 +86,8 @@ void main(void)
 
     // Set interrupts
     GPIO_enableInterrupt(GPIO_PORT_P2, GPIO_PIN5);
-    GPIO_selectInterruptEdge(GPIO_PORT_P2, GPIO_PIN5, GPIO_HIGH_TO_LOW_TRANSITION | GPIO_LOW_TO_HIGH_TRANSITION);
+    GPIO_selectInterruptEdge(GPIO_PORT_P2, GPIO_PIN5, GPIO_LOW_TO_HIGH_TRANSITION);
 
-//    displayScrollText("HELLO SIR 123");
-//    char test = 'W';
-    showChar(digit[], 1);
-    showHex(0x0);
     while (1) {
 
         // Set digital high on pin 2.7 (Trig)
@@ -118,24 +118,48 @@ void main(void)
 }
 
 #pragma vector=PORT2_VECTOR
-__interrupt void Port_2(void)
+__interrupt void Port_2_ISR(void)
 {
-    if(P1IFG&0x04)  //is there interrupt pending?
-        {
-          if(!(P1IES&0x04)) // is this the rising edge?
-          {
-            TACTL|=TACLR;   // clears timer A
-            miliseconds = 0;
-            P1IES |= 0x04;  //falling edge
-          }
-          else
-          {
-            sensor = (long)miliseconds*1000 + (long)TAR;    //calculating ECHO lenght
+//    if(P2IFG&0x04)  //is there interrupt pending?
+//        {
+//          if(!(P2IES&0x04)) // is this the rising edge?
+//          {
+//            TACTL|=TACLR;   // clears timer A
+//            miliseconds = 0;
+//            P2IES |= 0x04;  //falling edge
+//          }
+//          else
+//          {
+//            sensor = (long)miliseconds*1000 + (long)TAR;    //calculating ECHO length
+//          }
+//    P2IFG &= ~0x04;             //clear flag
+//    }
 
-          }
-    P1IFG &= ~0x04;             //clear flag
+    // Check to see if an interrupt on pin 5 is pending
+    if (P2IFG & 0x20) {
+        if (P2IES & 0x20 == GPIO_LOW_TO_HIGH_TRANSITION) {
+            // Rising edge interrupt
+
+            // Change interrupt edge to falling
+            P2IES |= 0x20;
+        }
+        else {
+            // Falling edge interrupt
+
+            // Calculate length of echo pulse based off timer's value
+
+            // Change interrupt edge to rising
+            P2IES &= ~0x20;
+        }
     }
+    GPIO_clearInterrupt(GPIO_PORT_P2, GPIO_PIN5);
 }
+
+//#pragma vector=TIMER0_A0_VECTOR
+//__interrupt void Timer_A (void)
+//{
+//  miliseconds++;
+//}
 
 
 void Init_GPIO(void)
