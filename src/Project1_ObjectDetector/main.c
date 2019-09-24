@@ -102,21 +102,6 @@ void main(void)
 #pragma vector=PORT2_VECTOR
 __interrupt void Port_2_ISR(void)
 {
-//    if(P2IFG&0x04)  //is there interrupt pending?
-//        {
-//          if(!(P2IES&0x04)) // is this the rising edge?
-//          {
-//            TACTL|=TACLR;   // clears timer A
-//            miliseconds = 0;
-//            P2IES |= 0x04;  //falling edge
-//          }
-//          else
-//          {
-//            sensor = (long)miliseconds*1000 + (long)TAR;    //calculating ECHO length
-//          }
-//    P2IFG &= ~0x04;             //clear flag
-//    }
-
     // Check if there is an interrupt flag on pin 5
     if (P2IFG & 0x20) {
         if (!(P2IES & 0x20)) {
