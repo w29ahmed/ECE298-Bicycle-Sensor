@@ -65,11 +65,13 @@
 extern const char digit[10][2];
 extern const char alphabetBig[26][2];
 
+int indexToLCDPos(int);
+
 void Init_LCD(void);
 void displayScrollText(char*);
 void showChar(char, int);
 void showHex(int hex);
+void showInt(int num);
 void clearLCD(void);
-
 
 #endif /* HAL_LCD_H_ */

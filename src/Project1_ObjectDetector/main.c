@@ -89,7 +89,7 @@ void main(void)
 
         // Maybe put a delay here to allow the ultrasonic beams to be sent out
         // 1s delay
-        //__delay_cycles(16000000);
+        __delay_cycles(160000);
     }
 }
 
@@ -134,7 +134,8 @@ __interrupt void Port_2_ISR(void)
             // microseconds passed since the timer started, which is the width of the echo pulse
             count_us = Timer_A_getCounterValue(TIMER_A0_BASE) / 16;
             distance_cm = count_us/58;
-            showHex(count_us/58);
+            clearLCD();
+            showInt(distance_cm);
 
             // Change interrupt edge to rising
             P2IES &= ~0x20;
