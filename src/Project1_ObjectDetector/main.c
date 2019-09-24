@@ -10,9 +10,7 @@
 char ADCState = 0; //Busy state of the ADC
 int16_t ADCResult = 0; //Storage for the ADC conversion result
 
-int miliseconds;
-int distance;
-long sensor;
+uint16_t count_us = 0;
 
 void main(void)
 {
@@ -58,6 +56,9 @@ void main(void)
     P2IE  = 0x00;
     P2IFG  = 0x00;
 
+    // Clear timer A
+    Timer_A_clear(TA0CTL);
+
     // Set pin 2.7 as the output pin for the ultrasonic Trig signal
     GPIO_setAsOutputPin(GPIO_PORT_P2, GPIO_PIN7);
 
@@ -79,8 +80,9 @@ void main(void)
         // Set digital low on pin 2.7 (Trig)
         GPIO_setOutputLowOnPin(GPIO_PORT_P2, GPIO_PIN7);
 
-        // get input pin value from pin 2.5
-        uint8_t echoVal = GPIO_getInputPinValue(GPIO_PORT_P2, GPIO_PIN5);
+        // Maybe put a delay here to allow the ultrasonic beams to be sent out
+        // 1s delay
+        __delay_cycles(16000000);
     }
 }
 
@@ -107,29 +109,33 @@ __interrupt void Port_2_ISR(void)
         if (!(P2IES & 0x20)) {
             // Rising edge interrupt
 
+            // Reset and start timer A
+            Timer_A_clear(TA0CTL);
+            Timer_A_startCounter(TA0CTL, TIMER_A_CONTINUOUS_MODE);
+
             // Change interrupt edge to falling
             P2IES |= 0x20;
-            showHex(0x1);
         }
         else {
             // Falling edge interrupt
 
             // Calculate length of echo pulse based off timer's value
 
+            // Stop timer A
+            Timer_A_stop(TA0CTL);
+
+            // Read timer A count, which will give us the # of clock cycles passed since it
+            // stared. With a 16 MHz clock, we divide count by 16 to get us the number of
+            // microseconds passed since the timer started, which is the width of the echo pulse
+            count_us = Timer_A_getCounterValue(TA0CTL) / 16;
+            showHex(count_us/58);
+
             // Change interrupt edge to rising
             P2IES &= ~0x20;
-            showHex(0x0);
         }
     }
     GPIO_clearInterrupt(GPIO_PORT_P2, GPIO_PIN5);
 }
-
-//#pragma vector=TIMER0_A0_VECTOR
-//__interrupt void Timer_A (void)
-//{
-//  miliseconds++;
-//}
-
 
 void Init_GPIO(void)
 {
