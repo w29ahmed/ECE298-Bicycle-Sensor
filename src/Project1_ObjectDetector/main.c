@@ -56,14 +56,8 @@ void main(void)
     P2IE  = 0x00;
     P2IFG  = 0x00;
 
-    // Start timer A in continuous mode sourced by SMCLK
-    Timer_A_initContinuousModeParam initContParam = {0};
-    initContParam.clockSource = TIMER_A_CLOCKSOURCE_SMCLK;
-    initContParam.clockSourceDivider = TIMER_A_CLOCKSOURCE_DIVIDER_1;
-    initContParam.timerInterruptEnable_TAIE = TIMER_A_TAIE_INTERRUPT_DISABLE;
-    initContParam.timerClear = TIMER_A_DO_CLEAR;
-    initContParam.startTimer = false;
-    Timer_A_initContinuousMode(TIMER_A0_BASE, &initContParam);
+    // Setup Timer A
+    Init_TimerA_Continuous();
 
     // Set pin 2.7 as the output pin for the ultrasonic Trig signal
     GPIO_setAsOutputPin(GPIO_PORT_P2, GPIO_PIN7);
@@ -128,6 +122,18 @@ __interrupt void Port_2_ISR(void)
         }
     }
     GPIO_clearInterrupt(GPIO_PORT_P2, GPIO_PIN5);
+}
+
+/* Timer A setup in continuous mode */
+void Init_TimerA_Continuous(void)
+{
+    Timer_A_initContinuousModeParam initContParam = {0};
+    initContParam.clockSource = TIMER_A_CLOCKSOURCE_SMCLK;
+    initContParam.clockSourceDivider = TIMER_A_CLOCKSOURCE_DIVIDER_1;
+    initContParam.timerInterruptEnable_TAIE = TIMER_A_TAIE_INTERRUPT_DISABLE;
+    initContParam.timerClear = TIMER_A_DO_CLEAR;
+    initContParam.startTimer = false;
+    Timer_A_initContinuousMode(TIMER_A0_BASE, &initContParam);
 }
 
 void Init_GPIO(void)
