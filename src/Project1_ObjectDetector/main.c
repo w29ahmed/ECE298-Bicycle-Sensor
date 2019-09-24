@@ -10,8 +10,7 @@
 char ADCState = 0; //Busy state of the ADC
 int16_t ADCResult = 0; //Storage for the ADC conversion result
 
-int count_us;
-int distance_cm;
+uint16_t timer_count = 0;
 
 void main(void)
 {
@@ -82,14 +81,21 @@ void main(void)
 
         // The MSP430 FR4133 has a 16 MHz CPU
         // Delay of 160 cycles gives translates to 10 us
-        __delay_cycles(160);
+        __delay_cycles(1);
 
         // Set digital low on pin 2.7 (Trig)
         GPIO_setOutputLowOnPin(GPIO_PORT_P2, GPIO_PIN7);
 
         // Maybe put a delay here to allow the ultrasonic beams to be sent out
-        // 1s delay
-        __delay_cycles(160000);
+        // ~30 ms
+        __delay_cycles(60000);
+
+        // Read timer A count, which will give us the # of clock cycles passed since it
+        // stared. With a 16 MHz clock, we divide count by 16 to get us the number of
+        // microseconds passed since the timer started, which is the width of the echo pulse, then
+        // divide by 58 to get distance in cm and display that to the LCD
+        clearLCD();
+        showInt((timer_count * 1) / 58);
     }
 }
 
@@ -129,13 +135,8 @@ __interrupt void Port_2_ISR(void)
             // Stop timer A
             Timer_A_stop(TIMER_A0_BASE);
 
-            // Read timer A count, which will give us the # of clock cycles passed since it
-            // stared. With a 16 MHz clock, we divide count by 16 to get us the number of
-            // microseconds passed since the timer started, which is the width of the echo pulse
-            count_us = Timer_A_getCounterValue(TIMER_A0_BASE) / 16;
-            distance_cm = count_us/58;
-            clearLCD();
-            showInt(distance_cm);
+            // Read timer value
+            timer_count = Timer_A_getCounterValue(TIMER_A0_BASE);
 
             // Change interrupt edge to rising
             P2IES &= ~0x20;

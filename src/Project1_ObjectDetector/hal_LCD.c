@@ -224,12 +224,16 @@ void showHex(int hex)
 /*
  * Displays integer value
  */
-void showInt(int num)
+void showInt(unsigned int num)
 {
+    if (num == 0) {
+        showChar('0', indexToLCDPos(0));
+        return;
+    }
+
     int i = 0;
     while (num != 0) {
-        char test = (char)(num % 10) +'0';
-        showChar(test, indexToLCDPos(i));
+        showChar((char)(num % 10) +'0', indexToLCDPos(i));
         num /= 10;
         i++;
     }
