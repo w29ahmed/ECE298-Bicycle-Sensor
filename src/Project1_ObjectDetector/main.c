@@ -54,29 +54,9 @@ void main(void)
     //All done initializations - turn interrupts back on.
     __enable_interrupt();
 
-//    displayScrollText("ECE 298");
-//    while(1) //Do this when you want an infinite loop of code
-//    {
-//        //Buttons SW1 and SW2 are active low (1 until pressed, then 0)
-//        if ((GPIO_getInputPinValue(SW1_PORT, SW1_PIN) == 1) & (buttonState == 0)) //Look for rising edge
-//        {
-//            Timer_A_stop(TIMER_A0_BASE);    //Shut off PWM signal
-//            buttonState = 1;                //Capture new button state
-//        }
-//        if ((GPIO_getInputPinValue(SW1_PORT, SW1_PIN) == 0) & (buttonState == 1)) //Look for falling edge
-//        {
-//            Timer_A_outputPWM(TIMER_A0_BASE, &param);   //Turn on PWM
-//            buttonState = 0;                            //Capture new button state
-//        }
-//
-//        //Start an ADC conversion (if it's not busy) in Single-Channel, Single Conversion Mode
-//        if (ADCState == 0)
-//        {
-//            showHex((int)ADCResult); //Put the previous result on the LCD display
-//            ADCState = 1; //Set flag to indicate ADC is busy - ADC ISR (interrupt) will clear it
-//            ADC_startConversion(ADC_BASE, ADC_SINGLECHANNEL);
-//        }
-//    }
+    //clear all interrupt enables and flags on port 2
+    P2IE  = 0x00;
+    P2IFG  = 0x00;
 
     // Set pin 2.7 as the output pin for the ultrasonic Trig signal
     GPIO_setAsOutputPin(GPIO_PORT_P2, GPIO_PIN7);
@@ -89,7 +69,6 @@ void main(void)
     GPIO_selectInterruptEdge(GPIO_PORT_P2, GPIO_PIN5, GPIO_LOW_TO_HIGH_TRANSITION);
 
     while (1) {
-
         // Set digital high on pin 2.7 (Trig)
         GPIO_setOutputHighOnPin(GPIO_PORT_P2, GPIO_PIN7);
 
@@ -102,19 +81,7 @@ void main(void)
 
         // get input pin value from pin 2.5
         uint8_t echoVal = GPIO_getInputPinValue(GPIO_PORT_P2, GPIO_PIN5);
-//        showChar(echoVal, 0);
     }
-
-    /*
-     * You can use the following code if you plan on only using interrupts
-     * to handle all your system events since you don't need any infinite loop of code.
-     *
-     * //Enter LPM0 - interrupts only
-     * __bis_SR_register(LPM0_bits);
-     * //For debugger to let it know that you meant for there to be no more code
-     * __no_operation();
-    */
-
 }
 
 #pragma vector=PORT2_VECTOR
@@ -135,13 +102,14 @@ __interrupt void Port_2_ISR(void)
 //    P2IFG &= ~0x04;             //clear flag
 //    }
 
-    // Check to see if an interrupt on pin 5 is pending
+    // Check if there is an interrupt flag on pin 5
     if (P2IFG & 0x20) {
-        if (P2IES & 0x20 == GPIO_LOW_TO_HIGH_TRANSITION) {
+        if (!(P2IES & 0x20)) {
             // Rising edge interrupt
 
             // Change interrupt edge to falling
             P2IES |= 0x20;
+            showHex(0x1);
         }
         else {
             // Falling edge interrupt
@@ -150,6 +118,7 @@ __interrupt void Port_2_ISR(void)
 
             // Change interrupt edge to rising
             P2IES &= ~0x20;
+            showHex(0x0);
         }
     }
     GPIO_clearInterrupt(GPIO_PORT_P2, GPIO_PIN5);
