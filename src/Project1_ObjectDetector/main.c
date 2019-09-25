@@ -14,7 +14,7 @@ uint16_t timer_count = 0;
 
 void main(void)
 {
-    char buttonState = 0; //Current button press state (to allow edge detection)
+    // char buttonState = 0; //Current button press state (to allow edge detection)
 
     /*
      * Functions with two underscores in front are called compiler intrinsics.
@@ -71,18 +71,17 @@ void main(void)
     GPIO_enableInterrupt(GPIO_PORT_P2, GPIO_PIN5);
     GPIO_selectInterruptEdge(GPIO_PORT_P2, GPIO_PIN5, GPIO_LOW_TO_HIGH_TRANSITION);
 
-    // Turn LED on
-    GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN6);
+    // Enable resistance on P1.2
+    P1REN |= (BIT2);
 
     while (1) {
-
-//        // Turn on LED while push button pressed
-//        if (GPIO_getInputPinValue(GPIO_PORT_P1, GPIO_PIN2)) {
-//            GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN6);
-//        }
-//        else {
-//            GPIO_setOutputLowOnPin(GPIO_PORT_P1, GPIO_PIN6);
-//        }
+        // Push buttons are 1 until pressed, then 0
+        if (GPIO_getInputPinValue(GPIO_PORT_P1, GPIO_PIN2) == GPIO_INPUT_PIN_HIGH) {
+            GPIO_setOutputLowOnPin(GPIO_PORT_P1, GPIO_PIN6);    // Turn LED OFF
+        }
+        else {
+            GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN6);   // Turn LED ON
+        }
 
         // Set digital high on pin 2.7 (Trig)
         GPIO_setOutputHighOnPin(GPIO_PORT_P2, GPIO_PIN7);
