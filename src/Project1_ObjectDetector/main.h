@@ -26,6 +26,7 @@
 #define ADC_IN_PIN      GPIO_PIN1
 #define ADC_IN_CHANNEL  ADC_INPUT_A9
 
+void Init_TimerA_Continuous(void);
 void Init_GPIO(void);
 void Init_Clock(void);
 void Init_UART(void);

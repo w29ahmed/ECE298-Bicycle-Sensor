@@ -59,17 +59,31 @@ void main(void)
     // Setup Timer A
     Init_TimerA_Continuous();
 
-    // Set pin 2.7 as the output pin for the ultrasonic Trig signal
-    GPIO_setAsOutputPin(GPIO_PORT_P2, GPIO_PIN7);
+    // Set output pins
+    GPIO_setAsOutputPin(GPIO_PORT_P2, GPIO_PIN7);       // Ultrasonic trigger
+    GPIO_setAsOutputPin(GPIO_PORT_P1, GPIO_PIN6);       // LED
 
-    // Set pin 2.5 as the input pin for the ultrasonic Echo signal
-    GPIO_setAsInputPin(GPIO_PORT_P2, GPIO_PIN5);
+    // Set input pins
+    GPIO_setAsInputPin(GPIO_PORT_P2, GPIO_PIN5);        // Ultrasonic echo
+    GPIO_setAsInputPin(GPIO_PORT_P1, GPIO_PIN2);        // Push button on the board
 
     // Set interrupts
     GPIO_enableInterrupt(GPIO_PORT_P2, GPIO_PIN5);
     GPIO_selectInterruptEdge(GPIO_PORT_P2, GPIO_PIN5, GPIO_LOW_TO_HIGH_TRANSITION);
 
+    // Turn LED on
+    GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN6);
+
     while (1) {
+
+//        // Turn on LED while push button pressed
+//        if (GPIO_getInputPinValue(GPIO_PORT_P1, GPIO_PIN2)) {
+//            GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN6);
+//        }
+//        else {
+//            GPIO_setOutputLowOnPin(GPIO_PORT_P1, GPIO_PIN6);
+//        }
+
         // Set digital high on pin 2.7 (Trig)
         GPIO_setOutputHighOnPin(GPIO_PORT_P2, GPIO_PIN7);
 
@@ -85,11 +99,11 @@ void main(void)
         __delay_cycles(60000);
 
         // Read timer A count, which will give us the # of clock cycles passed since it
-        // stared. With a 16 MHz clock, we divide count by 16 to get us the number of
-        // microseconds passed since the timer started, which is the width of the echo pulse, then
-        // divide by 58 to get distance in cm and display that to the LCD
+        // stared. Assuming the timer has a 1 MHz clock, this count will equal the
+        // microseconds (us), and the width of the echo signal. Then, divide by 58 to get
+        // distance in cm and display that to the LCD
         clearLCD();
-        showInt((timer_count * 1) / 58);
+        showInt(timer_count / 58);
     }
 }
 
