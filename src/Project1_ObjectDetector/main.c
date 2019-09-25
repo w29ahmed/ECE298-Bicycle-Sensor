@@ -1,6 +1,7 @@
 #include "main.h"
 #include "driverlib/driverlib.h"
 #include "hal_LCD.h"
+#include "buzzer.h"
 
 /*
  * This project contains some code samples that may be useful.
@@ -10,9 +11,11 @@
 char ADCState = 0; //Busy state of the ADC
 int16_t ADCResult = 0; //Storage for the ADC conversion result
 
+uint16_t timer_count = 0;
+
 void main(void)
 {
-    char buttonState = 0; //Current button press state (to allow edge detection)
+    // char buttonState = 0; //Current button press state (to allow edge detection)
 
     /*
      * Functions with two underscores in front are called compiler intrinsics.
@@ -50,41 +53,110 @@ void main(void)
     //All done initializations - turn interrupts back on.
     __enable_interrupt();
 
-    displayScrollText("ECE 298");
+    //clear all interrupt enables and flags on port 2
+    P2IE  = 0x00;
+    P2IFG  = 0x00;
 
-    while(1) //Do this when you want an infinite loop of code
-    {
-        //Buttons SW1 and SW2 are active low (1 until pressed, then 0)
-        if ((GPIO_getInputPinValue(SW1_PORT, SW1_PIN) == 1) & (buttonState == 0)) //Look for rising edge
-        {
-            Timer_A_stop(TIMER_A0_BASE);    //Shut off PWM signal
-            buttonState = 1;                //Capture new button state
+    // Setup Timer A
+    Init_TimerA_Continuous();
+
+    // Set output pins
+    GPIO_setAsOutputPin(GPIO_PORT_P2, GPIO_PIN7);       // Ultrasonic trigger
+    GPIO_setAsOutputPin(GPIO_PORT_P1, GPIO_PIN6);       // LED
+    GPIO_setAsOutputPin(GPIO_PORT_P1, GPIO_PIN7);       // Buzzer
+
+    // Set input pins
+    GPIO_setAsInputPin(GPIO_PORT_P2, GPIO_PIN5);        // Ultrasonic echo
+    GPIO_setAsInputPin(GPIO_PORT_P1, GPIO_PIN2);        // Push button 1
+    GPIO_setAsInputPin(GPIO_PORT_P2, GPIO_PIN6);        // Push button 2
+
+    // Set interrupts
+    GPIO_enableInterrupt(GPIO_PORT_P2, GPIO_PIN5);
+    GPIO_selectInterruptEdge(GPIO_PORT_P2, GPIO_PIN5, GPIO_LOW_TO_HIGH_TRANSITION);
+
+    P1REN |= (BIT2);     // Enable resistance on P1.2 (PB 1)
+    P2REN |= (BIT6);    // Enable resistance on P2.6 (PB 2)
+
+    while (1) {
+        // Push buttons are active low (1 until pressed, then 0)
+
+        // PB 1 (For the LED)
+        if (GPIO_getInputPinValue(GPIO_PORT_P1, GPIO_PIN2) == GPIO_INPUT_PIN_HIGH) {
+            GPIO_setOutputLowOnPin(GPIO_PORT_P1, GPIO_PIN6);    // Turn LED OFF
         }
-        if ((GPIO_getInputPinValue(SW1_PORT, SW1_PIN) == 0) & (buttonState == 1)) //Look for falling edge
-        {
-            Timer_A_outputPWM(TIMER_A0_BASE, &param);   //Turn on PWM
-            buttonState = 0;                            //Capture new button state
+        else {
+            GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN6);   // Turn LED ON
         }
 
-        //Start an ADC conversion (if it's not busy) in Single-Channel, Single Conversion Mode
-        if (ADCState == 0)
-        {
-            showHex((int)ADCResult); //Put the previous result on the LCD display
-            ADCState = 1; //Set flag to indicate ADC is busy - ADC ISR (interrupt) will clear it
-            ADC_startConversion(ADC_BASE, ADC_SINGLECHANNEL);
+        // PB 2 (For the buzzer)
+        if (GPIO_getInputPinValue(GPIO_PORT_P2, GPIO_PIN6) == GPIO_INPUT_PIN_LOW) {
+            beep(440, 500); // Beep the buzzer
+        }
+
+        // Set digital high on pin 2.7 (Trig)
+        GPIO_setOutputHighOnPin(GPIO_PORT_P2, GPIO_PIN7);
+
+        // The MSP430 FR4133 has a 16 MHz CPU
+        // Delay of 160 cycles gives translates to 10 us
+        __delay_cycles(1);
+
+        // Set digital low on pin 2.7 (Trig)
+        GPIO_setOutputLowOnPin(GPIO_PORT_P2, GPIO_PIN7);
+
+        // Maybe put a delay here to allow the ultrasonic beams to be sent out
+        // ~30 ms
+        __delay_cycles(60000);
+
+        // Read timer A count, which will give us the # of clock cycles passed since it
+        // stared. Assuming the timer has a 1 MHz clock, this count will equal the
+        // microseconds (us), and the width of the echo signal. Then, divide by 58 to get
+        // distance in cm and display that to the LCD
+        clearLCD();
+        showInt(timer_count / 58);
+    }
+}
+
+#pragma vector=PORT2_VECTOR
+__interrupt void Port_2_ISR(void)
+{
+    // Check if there is an interrupt flag on pin 5
+    if (P2IFG & 0x20) {
+        if (!(P2IES & 0x20)) {
+            // Rising edge interrupt
+
+            // Reset and start timer A
+            Timer_A_clear(TIMER_A0_BASE);
+            Timer_A_startCounter(TIMER_A0_BASE, TIMER_A_CONTINUOUS_MODE);
+
+            // Change interrupt edge to falling
+            P2IES |= 0x20;
+        }
+        else {
+            // Falling edge interrupt
+
+            // Stop timer A
+            Timer_A_stop(TIMER_A0_BASE);
+
+            // Read timer value
+            timer_count = Timer_A_getCounterValue(TIMER_A0_BASE);
+
+            // Change interrupt edge to rising
+            P2IES &= ~0x20;
         }
     }
+    GPIO_clearInterrupt(GPIO_PORT_P2, GPIO_PIN5);
+}
 
-    /*
-     * You can use the following code if you plan on only using interrupts
-     * to handle all your system events since you don't need any infinite loop of code.
-     *
-     * //Enter LPM0 - interrupts only
-     * __bis_SR_register(LPM0_bits);
-     * //For debugger to let it know that you meant for there to be no more code
-     * __no_operation();
-    */
-
+/* Timer A setup in continuous mode */
+void Init_TimerA_Continuous(void)
+{
+    Timer_A_initContinuousModeParam initContParam = {0};
+    initContParam.clockSource = TIMER_A_CLOCKSOURCE_SMCLK;
+    initContParam.clockSourceDivider = TIMER_A_CLOCKSOURCE_DIVIDER_1;
+    initContParam.timerInterruptEnable_TAIE = TIMER_A_TAIE_INTERRUPT_DISABLE;
+    initContParam.timerClear = TIMER_A_DO_CLEAR;
+    initContParam.startTimer = false;
+    Timer_A_initContinuousMode(TIMER_A0_BASE, &initContParam);
 }
 
 void Init_GPIO(void)

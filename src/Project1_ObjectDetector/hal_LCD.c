@@ -90,6 +90,25 @@ const char alphabetBig[26][2] =
     {0x90, 0x28}   /* "Z" */
 };
 
+int indexToLCDPos(int pos) {
+    switch (pos) {
+    case 0:
+        return pos6;
+    case 1:
+        return pos5;
+    case 2:
+        return pos4;
+    case 3:
+        return pos3;
+    case 4:
+        return pos2;
+    case 5:
+        return pos1;
+    default:
+      return pos1;
+    }
+}
+
 void Init_LCD()
 {
     // L0~L26 & L36~L39 pins selected
@@ -200,6 +219,24 @@ void showHex(int hex)
     showChar((char)((0x30 & hex) >> 4) + '0', pos4);
     showChar((char)((0x0C & hex) >> 2) + '0', pos5);
     showChar((char)(0x03 & hex) + '0', pos6);
+}
+
+/*
+ * Displays integer value
+ */
+void showInt(unsigned int num)
+{
+    if (num == 0) {
+        showChar('0', indexToLCDPos(0));
+        return;
+    }
+
+    int i = 0;
+    while (num != 0) {
+        showChar((char)(num % 10) +'0', indexToLCDPos(i));
+        num /= 10;
+        i++;
+    }
 }
 
 /*
