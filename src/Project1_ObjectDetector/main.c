@@ -1,6 +1,7 @@
 #include "main.h"
 #include "driverlib/driverlib.h"
 #include "hal_LCD.h"
+#include "buzzer.h"
 
 /*
  * This project contains some code samples that may be useful.
@@ -62,25 +63,34 @@ void main(void)
     // Set output pins
     GPIO_setAsOutputPin(GPIO_PORT_P2, GPIO_PIN7);       // Ultrasonic trigger
     GPIO_setAsOutputPin(GPIO_PORT_P1, GPIO_PIN6);       // LED
+    GPIO_setAsOutputPin(GPIO_PORT_P1, GPIO_PIN7);       // Buzzer
 
     // Set input pins
     GPIO_setAsInputPin(GPIO_PORT_P2, GPIO_PIN5);        // Ultrasonic echo
-    GPIO_setAsInputPin(GPIO_PORT_P1, GPIO_PIN2);        // Push button on the board
+    GPIO_setAsInputPin(GPIO_PORT_P1, GPIO_PIN2);        // Push button 1
+    GPIO_setAsInputPin(GPIO_PORT_P2, GPIO_PIN6);        // Push button 2
 
     // Set interrupts
     GPIO_enableInterrupt(GPIO_PORT_P2, GPIO_PIN5);
     GPIO_selectInterruptEdge(GPIO_PORT_P2, GPIO_PIN5, GPIO_LOW_TO_HIGH_TRANSITION);
 
-    // Enable resistance on P1.2
-    P1REN |= (BIT2);
+    P1REN |= (BIT2);     // Enable resistance on P1.2 (PB 1)
+    P2REN |= (BIT6);    // Enable resistance on P2.6 (PB 2)
 
     while (1) {
-        // Push buttons are 1 until pressed, then 0
+        // Push buttons are active low (1 until pressed, then 0)
+
+        // PB 1 (For the LED)
         if (GPIO_getInputPinValue(GPIO_PORT_P1, GPIO_PIN2) == GPIO_INPUT_PIN_HIGH) {
             GPIO_setOutputLowOnPin(GPIO_PORT_P1, GPIO_PIN6);    // Turn LED OFF
         }
         else {
             GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN6);   // Turn LED ON
+        }
+
+        // PB 2 (For the buzzer)
+        if (GPIO_getInputPinValue(GPIO_PORT_P2, GPIO_PIN6) == GPIO_INPUT_PIN_LOW) {
+            beep(440, 500); // Beep the buzzer
         }
 
         // Set digital high on pin 2.7 (Trig)
