@@ -12,6 +12,68 @@ char ADCState = 0; //Busy state of the ADC
 int16_t ADCResult = 0; //Storage for the ADC conversion result
 
 uint16_t timer_count = 0;
+int distance = 0;
+int mode = 0;       // 0 = User mode, 1 = Setup mode
+
+// Proximity thresholds (in cm)
+int forward_thres1 = 10;
+int forward_thres2 = 20;
+int forward_thres3 = 30;
+int back_thres1 = 20;
+int back_thres2 = 40;
+
+int setup_thres = 0;     // 0 = Red threshold, 1 = Orange threshold, 2 = Yellow threshold
+
+void turnOffLeds() {
+    GPIO_setOutputLowOnPin(GPIO_PORT_P1, GPIO_PIN5);    // Turn Red LED OFF
+    GPIO_setOutputLowOnPin(GPIO_PORT_P1, GPIO_PIN4);    // Turn Orange LED OFF
+    GPIO_setOutputLowOnPin(GPIO_PORT_P1, GPIO_PIN3);    // Turn Yellow LED OFF
+    GPIO_setOutputLowOnPin(GPIO_PORT_P1, GPIO_PIN6);    // Turn Green LED OFF
+}
+
+void forwardProximityCheck(int distance) {
+    turnOffLeds();    // First turn all LEDs off
+
+    if (distance <= forward_thres1) {
+        GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN5);   // Turn Red LED ON
+    }
+    else if (distance <= forward_thres2) {
+        GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN4);   // Turn Orange LED ON
+    }
+    else if (distance <= forward_thres3) {
+        GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN3);   // Turn Yellow LED ON
+    }
+    else {
+        GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN6);   // Turn Green LED ON
+    }
+}
+
+void backProximityCheck(int distance) {
+
+}
+
+void sendTriggerAndDisplay() {
+    // Set digital high on pin 2.7 (Trig)
+    GPIO_setOutputHighOnPin(GPIO_PORT_P2, GPIO_PIN7);
+
+    // The MSP430 FR4133 has a 16 MHz CPU
+    // Delay of 160 cycles gives translates to 10 us
+    __delay_cycles(1);
+
+    // Set digital low on pin 2.7 (Trig)
+    GPIO_setOutputLowOnPin(GPIO_PORT_P2, GPIO_PIN7);
+
+    // ~30 ms delay to allow ultrasonic beams to be sent out
+    __delay_cycles(60000);
+
+    // Read timer A count, which will give us the # of clock cycles passed since it
+    // stared. Assuming the timer has a 1 MHz clock, this count will equal the
+    // microseconds (us), and the width of the echo signal. Then, divide by 58 to get
+    // distance in cm and display that to the LCD
+    clearLCD();
+    distance = timer_count / 58;
+    showInt(distance);
+}
 
 void main(void)
 {
@@ -53,66 +115,114 @@ void main(void)
     //All done initializations - turn interrupts back on.
     __enable_interrupt();
 
-    //clear all interrupt enables and flags on port 2
+    //clear all interrupt enables and flags on port 1 & 2
     P2IE  = 0x00;
     P2IFG  = 0x00;
+    P1IE  = 0x00;
+    P1IFG  = 0x00;
 
     // Setup Timer A
     Init_TimerA_Continuous();
 
     // Set output pins
     GPIO_setAsOutputPin(GPIO_PORT_P2, GPIO_PIN7);       // Ultrasonic trigger
-    GPIO_setAsOutputPin(GPIO_PORT_P1, GPIO_PIN6);       // LED
     GPIO_setAsOutputPin(GPIO_PORT_P1, GPIO_PIN7);       // Buzzer
+    GPIO_setAsOutputPin(GPIO_PORT_P1, GPIO_PIN6);       // Green LED
+    GPIO_setAsOutputPin(GPIO_PORT_P1, GPIO_PIN3);       // Yellow LED
+    GPIO_setAsOutputPin(GPIO_PORT_P1, GPIO_PIN4);       // Orange LED
+    GPIO_setAsOutputPin(GPIO_PORT_P1, GPIO_PIN5);       // Red LED
+    GPIO_setAsOutputPin(GPIO_PORT_P1, GPIO_PIN0);       // Internal LED
 
     // Set input pins
     GPIO_setAsInputPin(GPIO_PORT_P2, GPIO_PIN5);        // Ultrasonic echo
     GPIO_setAsInputPin(GPIO_PORT_P1, GPIO_PIN2);        // Push button 1
     GPIO_setAsInputPin(GPIO_PORT_P2, GPIO_PIN6);        // Push button 2
 
-    // Set interrupts
+    // ****************** Set interrupts ******************
+    // Forward ultrasonic echo interrupt
     GPIO_enableInterrupt(GPIO_PORT_P2, GPIO_PIN5);
     GPIO_selectInterruptEdge(GPIO_PORT_P2, GPIO_PIN5, GPIO_LOW_TO_HIGH_TRANSITION);
+
+    // PB 1 interrupt to switch between user and setup mode
+    GPIO_enableInterrupt(GPIO_PORT_P1, GPIO_PIN2);
+    GPIO_selectInterruptEdge(GPIO_PORT_P1, GPIO_PIN2, GPIO_HIGH_TO_LOW_TRANSITION);
 
     P1REN |= (BIT2);     // Enable resistance on P1.2 (PB 1)
     P2REN |= (BIT6);    // Enable resistance on P2.6 (PB 2)
 
     while (1) {
-        // Push buttons are active low (1 until pressed, then 0)
+        if (mode == 0) {
+            // User Mode
+            GPIO_setOutputLowOnPin(GPIO_PORT_P1, GPIO_PIN0);   // LED mode indicator
 
-        // PB 1 (For the LED)
-        if (GPIO_getInputPinValue(GPIO_PORT_P1, GPIO_PIN2) == GPIO_INPUT_PIN_HIGH) {
-            GPIO_setOutputLowOnPin(GPIO_PORT_P1, GPIO_PIN6);    // Turn LED OFF
+            sendTriggerAndDisplay();
+            forwardProximityCheck(distance);
         }
-        else {
-            GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN6);   // Turn LED ON
+        else if (mode == 1) {
+            // Setup mode
+            GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN0);    // LED mode indicator
+
+            sendTriggerAndDisplay();
+            turnOffLeds();
+
+            switch (setup_thres) {
+                case 0:
+                    GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN5);
+                    break;
+                case 1:
+                    GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN4);
+                    break;
+                case 2:
+                    GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN3);
+                    break;
+                case 3:
+                    GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN6);
+                    break;
+                default:
+                    break;
+            }
+
+            // Check to see if PB 2 was pressed
+            if (GPIO_getInputPinValue(GPIO_PORT_P2, GPIO_PIN6) == GPIO_INPUT_PIN_LOW) {
+                switch (setup_thres) {
+                    case 0:
+                        forward_thres1 = distance;
+                        setup_thres++;
+                        break;
+                    case 1:
+                        if (distance < forward_thres1) {
+                            // Don't allow user to set a threshold lower than the previous one - doesn't make any sense
+                            // Beep twice to let user know they can't do this
+                            beep(440, 500);
+                            beep(440, 500);
+                        }
+                        else {
+                            forward_thres2 = distance;
+                            setup_thres++;
+                        }
+
+                        break;
+                    case 2:
+                        if (distance < forward_thres2) {
+                            // Don't allow user to set a threshold lower than the previous one - doesn't make any sense
+                            // Beep twice to let user know they can't do this
+                            beep(440, 500);
+                            beep(440, 500);
+                        }
+                        else {
+                            forward_thres3 = distance;
+                            // Done with setup, go back to user mode and reset setup_thres
+                            setup_thres = 0;
+                            mode = 0;
+                        }
+
+                        break;
+                    default:
+                        break;
+                }
+            }
+
         }
-
-        // PB 2 (For the buzzer)
-        if (GPIO_getInputPinValue(GPIO_PORT_P2, GPIO_PIN6) == GPIO_INPUT_PIN_LOW) {
-            beep(440, 500); // Beep the buzzer
-        }
-
-        // Set digital high on pin 2.7 (Trig)
-        GPIO_setOutputHighOnPin(GPIO_PORT_P2, GPIO_PIN7);
-
-        // The MSP430 FR4133 has a 16 MHz CPU
-        // Delay of 160 cycles gives translates to 10 us
-        __delay_cycles(1);
-
-        // Set digital low on pin 2.7 (Trig)
-        GPIO_setOutputLowOnPin(GPIO_PORT_P2, GPIO_PIN7);
-
-        // Maybe put a delay here to allow the ultrasonic beams to be sent out
-        // ~30 ms
-        __delay_cycles(60000);
-
-        // Read timer A count, which will give us the # of clock cycles passed since it
-        // stared. Assuming the timer has a 1 MHz clock, this count will equal the
-        // microseconds (us), and the width of the echo signal. Then, divide by 58 to get
-        // distance in cm and display that to the LCD
-        clearLCD();
-        showInt(timer_count / 58);
     }
 }
 
@@ -145,6 +255,20 @@ __interrupt void Port_2_ISR(void)
         }
     }
     GPIO_clearInterrupt(GPIO_PORT_P2, GPIO_PIN5);
+}
+
+#pragma vector=PORT1_VECTOR
+__interrupt void Port_1_ISR(void)
+{
+    // Check if there is an interrupt flag on pin 2
+    if (P1IFG & 0x4) {
+        if (P1IES & 0x4) {
+            // Falling edge interrupt
+            mode ^= 0x1;    // Switch modes
+            setup_thres = 0;    // Reset setup thres flag to make sure setup mode always starts at first threshold
+        }
+    }
+    GPIO_clearInterrupt(GPIO_PORT_P1, GPIO_PIN2);
 }
 
 /* Timer A setup in continuous mode */
