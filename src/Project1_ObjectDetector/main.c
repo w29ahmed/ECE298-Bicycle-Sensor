@@ -12,43 +12,43 @@ char ADCState = 0; //Busy state of the ADC
 int16_t ADCResult = 0; //Storage for the ADC conversion result
 
 uint16_t timer_count = 0;
-int distance = 0;
+int rear_distance = 0;
 int mode = 0;       // 0 = User mode, 1 = Setup mode
 
 // Proximity thresholds (in cm)
-int forward_thres1 = 10;
-int forward_thres2 = 20;
-int forward_thres3 = 30;
-int back_thres1 = 20;
-int back_thres2 = 40;
+int rear_thres1 = 10;
+int rear_thres2 = 20;
+int rear_thres3 = 30;
+int forward_thres1 = 20;
+int forward_thres2 = 40;
 
 int setup_thres = 0;     // 0 = Red threshold, 1 = Orange threshold, 2 = Yellow threshold
 
 void turnOffLeds() {
-    GPIO_setOutputLowOnPin(GPIO_PORT_P1, GPIO_PIN5);    // Turn Red LED OFF
-    GPIO_setOutputLowOnPin(GPIO_PORT_P1, GPIO_PIN4);    // Turn Orange LED OFF
-    GPIO_setOutputLowOnPin(GPIO_PORT_P1, GPIO_PIN3);    // Turn Yellow LED OFF
+    GPIO_setOutputLowOnPin(GPIO_PORT_P1, GPIO_PIN4);    // Turn Red LED OFF
+    GPIO_setOutputLowOnPin(GPIO_PORT_P1, GPIO_PIN3);    // Turn Orange LED OFF
+    GPIO_setOutputLowOnPin(GPIO_PORT_P5, GPIO_PIN0);    // Turn Yellow LED OFF
     GPIO_setOutputLowOnPin(GPIO_PORT_P1, GPIO_PIN6);    // Turn Green LED OFF
 }
 
-void forwardProximityCheck(int distance) {
+void rearProximityCheck() {
     turnOffLeds();    // First turn all LEDs off
 
-    if (distance <= forward_thres1) {
-        GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN5);   // Turn Red LED ON
+    if (rear_distance <= rear_thres1) {
+        GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN4);   // Turn Red LED ON
     }
-    else if (distance <= forward_thres2) {
-        GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN4);   // Turn Orange LED ON
+    else if (rear_distance <= rear_thres2) {
+        GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN3);   // Turn Orange LED ON
     }
-    else if (distance <= forward_thres3) {
-        GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN3);   // Turn Yellow LED ON
+    else if (rear_distance <= rear_thres3) {
+        GPIO_setOutputHighOnPin(GPIO_PORT_P5, GPIO_PIN0);   // Turn Yellow LED ON
     }
     else {
         GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN6);   // Turn Green LED ON
     }
 }
 
-void backProximityCheck(int distance) {
+void forwardProximityCheck(e) {
 
 }
 
@@ -71,8 +71,8 @@ void sendTriggerAndDisplay() {
     // microseconds (us), and the width of the echo signal. Then, divide by 58 to get
     // distance in cm and display that to the LCD
     clearLCD();
-    distance = timer_count / 58;
-    showInt(distance);
+    rear_distance = timer_count / 58;
+    showInt(rear_distance);
 }
 
 void main(void)
@@ -128,20 +128,20 @@ void main(void)
     GPIO_setAsOutputPin(GPIO_PORT_P2, GPIO_PIN7);       // Ultrasonic trigger
     GPIO_setAsOutputPin(GPIO_PORT_P1, GPIO_PIN7);       // Buzzer
     GPIO_setAsOutputPin(GPIO_PORT_P1, GPIO_PIN6);       // Green LED
-    GPIO_setAsOutputPin(GPIO_PORT_P1, GPIO_PIN3);       // Yellow LED
-    GPIO_setAsOutputPin(GPIO_PORT_P1, GPIO_PIN4);       // Orange LED
-    GPIO_setAsOutputPin(GPIO_PORT_P1, GPIO_PIN5);       // Red LED
+    GPIO_setAsOutputPin(GPIO_PORT_P5, GPIO_PIN0);       // Yellow LED
+    GPIO_setAsOutputPin(GPIO_PORT_P1, GPIO_PIN3);       // Orange LED
+    GPIO_setAsOutputPin(GPIO_PORT_P1, GPIO_PIN4);       // Red LED
     GPIO_setAsOutputPin(GPIO_PORT_P1, GPIO_PIN0);       // Internal LED
 
     // Set input pins
-    GPIO_setAsInputPin(GPIO_PORT_P2, GPIO_PIN5);        // Ultrasonic echo
+    GPIO_setAsInputPin(GPIO_PORT_P1, GPIO_PIN5);        // Rear Ultrasonic echo
     GPIO_setAsInputPin(GPIO_PORT_P1, GPIO_PIN2);        // Push button 1
     GPIO_setAsInputPin(GPIO_PORT_P2, GPIO_PIN6);        // Push button 2
 
     // ****************** Set interrupts ******************
     // Forward ultrasonic echo interrupt
-    GPIO_enableInterrupt(GPIO_PORT_P2, GPIO_PIN5);
-    GPIO_selectInterruptEdge(GPIO_PORT_P2, GPIO_PIN5, GPIO_LOW_TO_HIGH_TRANSITION);
+    GPIO_enableInterrupt(GPIO_PORT_P1, GPIO_PIN5);
+    GPIO_selectInterruptEdge(GPIO_PORT_P1, GPIO_PIN5, GPIO_LOW_TO_HIGH_TRANSITION);
 
     // PB 1 interrupt to switch between user and setup mode
     GPIO_enableInterrupt(GPIO_PORT_P1, GPIO_PIN2);
@@ -156,7 +156,7 @@ void main(void)
             GPIO_setOutputLowOnPin(GPIO_PORT_P1, GPIO_PIN0);   // LED mode indicator
 
             sendTriggerAndDisplay();
-            forwardProximityCheck(distance);
+            rearProximityCheck();
         }
         else if (mode == 1) {
             // Setup mode
@@ -167,16 +167,13 @@ void main(void)
 
             switch (setup_thres) {
                 case 0:
-                    GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN5);
+                    GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN4);	// Red LED
                     break;
                 case 1:
-                    GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN4);
+                    GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN3);	// Orange LED
                     break;
                 case 2:
-                    GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN3);
-                    break;
-                case 3:
-                    GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN6);
+                    GPIO_setOutputHighOnPin(GPIO_PORT_P5, GPIO_PIN0);	// Yellow LED
                     break;
                 default:
                     break;
@@ -186,31 +183,31 @@ void main(void)
             if (GPIO_getInputPinValue(GPIO_PORT_P2, GPIO_PIN6) == GPIO_INPUT_PIN_LOW) {
                 switch (setup_thres) {
                     case 0:
-                        forward_thres1 = distance;
+                        rear_thres1 = rear_distance;
                         setup_thres++;
                         break;
                     case 1:
-                        if (distance < forward_thres1) {
+                        if (rear_distance < rear_thres1) {
                             // Don't allow user to set a threshold lower than the previous one - doesn't make any sense
                             // Beep twice to let user know they can't do this
                             beep(440, 500);
                             beep(440, 500);
                         }
                         else {
-                            forward_thres2 = distance;
+                            rear_thres2 = rear_distance;
                             setup_thres++;
                         }
 
                         break;
                     case 2:
-                        if (distance < forward_thres2) {
+                        if (rear_distance < rear_thres2) {
                             // Don't allow user to set a threshold lower than the previous one - doesn't make any sense
                             // Beep twice to let user know they can't do this
                             beep(440, 500);
                             beep(440, 500);
                         }
                         else {
-                            forward_thres3 = distance;
+                            rear_thres3 = rear_distance;
                             // Done with setup, go back to user mode and reset setup_thres
                             setup_thres = 0;
                             mode = 0;
@@ -229,9 +226,39 @@ void main(void)
 #pragma vector=PORT2_VECTOR
 __interrupt void Port_2_ISR(void)
 {
-    // Check if there is an interrupt flag on pin 5
-    if (P2IFG & 0x20) {
-        if (!(P2IES & 0x20)) {
+//    // Check if there is an interrupt flag on pin 5
+//    if (P2IFG & 0x20) {
+//        if (!(P2IES & 0x20)) {
+//            // Rising edge interrupt
+//
+//            // Reset and start timer A
+//            Timer_A_clear(TIMER_A0_BASE);
+//            Timer_A_startCounter(TIMER_A0_BASE, TIMER_A_CONTINUOUS_MODE);
+//
+//            // Change interrupt edge to falling
+//            P2IES |= 0x20;
+//        }
+//        else {
+//            // Falling edge interrupt
+//
+//            // Stop timer A
+//            Timer_A_stop(TIMER_A0_BASE);
+//
+//            // Read timer value
+//            timer_count = Timer_A_getCounterValue(TIMER_A0_BASE);
+//
+//            // Change interrupt edge to rising
+//            P2IES &= ~0x20;
+//        }
+//    }
+//    GPIO_clearInterrupt(GPIO_PORT_P2, GPIO_PIN5);
+}
+
+#pragma vector=PORT1_VECTOR
+__interrupt void Port_1_ISR(void)
+{
+    if (P1IFG & 0x20) {     // pin 5 (Rear echo)
+        if (!(P1IES & 0x20)) {
             // Rising edge interrupt
 
             // Reset and start timer A
@@ -239,7 +266,7 @@ __interrupt void Port_2_ISR(void)
             Timer_A_startCounter(TIMER_A0_BASE, TIMER_A_CONTINUOUS_MODE);
 
             // Change interrupt edge to falling
-            P2IES |= 0x20;
+            P1IES |= 0x20;
         }
         else {
             // Falling edge interrupt
@@ -251,24 +278,18 @@ __interrupt void Port_2_ISR(void)
             timer_count = Timer_A_getCounterValue(TIMER_A0_BASE);
 
             // Change interrupt edge to rising
-            P2IES &= ~0x20;
+            P1IES &= ~0x20;
         }
+        GPIO_clearInterrupt(GPIO_PORT_P1, GPIO_PIN5);
     }
-    GPIO_clearInterrupt(GPIO_PORT_P2, GPIO_PIN5);
-}
-
-#pragma vector=PORT1_VECTOR
-__interrupt void Port_1_ISR(void)
-{
-    // Check if there is an interrupt flag on pin 2
-    if (P1IFG & 0x4) {
+    else if (P1IFG & 0x4) { // pin 2 (PB 1)
         if (P1IES & 0x4) {
             // Falling edge interrupt
             mode ^= 0x1;    // Switch modes
             setup_thres = 0;    // Reset setup thres flag to make sure setup mode always starts at first threshold
         }
+        GPIO_clearInterrupt(GPIO_PORT_P1, GPIO_PIN2);
     }
-    GPIO_clearInterrupt(GPIO_PORT_P1, GPIO_PIN2);
 }
 
 /* Timer A setup in continuous mode */

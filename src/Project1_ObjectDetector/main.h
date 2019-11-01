@@ -34,8 +34,8 @@ void Init_PWM(void);
 void Init_ADC(void);
 
 void turnOffLeds();
-void forwardProximityCheck(int);
-void backProximityCheck(int);
+void forwardProximityCheck();
+void rearProximityCheck();
 void sendTriggerAndDisplay();
 
 Timer_A_outputPWMParam param; //Timer configuration data structure for PWM
