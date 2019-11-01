@@ -24,6 +24,18 @@ int forward_thres2 = 40;
 
 int setup_thres = 0;     // 0 = Red threshold, 1 = Orange threshold, 2 = Yellow threshold
 
+int pb2_val = 1; // Active low
+
+int pb2press() {
+	// Look for a falling edge
+	if (pb2_val == 1 && GPIO_getInputPinValue(GPIO_PORT_P2, GPIO_PIN6) == 0) {
+		pb2_val = 0;
+		return 1;
+	}
+	pb2_val = 1;
+	return 0;
+}
+
 void turnOffLeds() {
     GPIO_setOutputLowOnPin(GPIO_PORT_P1, GPIO_PIN4);    // Turn Red LED OFF
     GPIO_setOutputLowOnPin(GPIO_PORT_P1, GPIO_PIN3);    // Turn Orange LED OFF
@@ -157,6 +169,10 @@ void main(void)
 
             sendTriggerAndDisplay();
             rearProximityCheck();
+
+            if (pb2press()) {
+            	beep(440, 500);
+            }
         }
         else if (mode == 1) {
             // Setup mode
@@ -180,7 +196,7 @@ void main(void)
             }
 
             // Check to see if PB 2 was pressed
-            if (GPIO_getInputPinValue(GPIO_PORT_P2, GPIO_PIN6) == GPIO_INPUT_PIN_LOW) {
+            if (pb2press()) {
                 switch (setup_thres) {
                     case 0:
                         rear_thres1 = rear_distance;
