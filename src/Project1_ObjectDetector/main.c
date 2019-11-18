@@ -11,9 +11,14 @@
 char ADCState = 0; //Busy state of the ADC
 int16_t ADCResult = 0; //Storage for the ADC conversion result
 
-uint16_t timer_count = 0;
+uint16_t timerA0_count = 0;
+uint16_t timerA1_count = 0;
+
 int rear_distance = 0;
-int mode = 0;       // 0 = User mode, 1 = Setup mode
+int forward_distance = 0;
+
+int operation_mode = 0;       	// 0 = User mode, 1 = Setup mode
+int sensor_mode = 1;			// 0 = Rear, 1 = Forward
 
 // Proximity thresholds (in cm)
 int rear_thres1 = 10;
@@ -22,7 +27,7 @@ int rear_thres3 = 30;
 int forward_thres1 = 20;
 int forward_thres2 = 40;
 
-int setup_thres = 0;     // 0 = Red threshold, 1 = Orange threshold, 2 = Yellow threshold
+int rear_setup_thres = 0;     // 0 = Red threshold, 1 = Orange threshold, 2 = Yellow threshold
 
 int pb2_val = 1; // Active low
 
@@ -60,11 +65,45 @@ void rearProximityCheck() {
     }
 }
 
-void forwardProximityCheck(e) {
+void forwardProximityCheck() {
 
 }
 
-void sendTriggerAndDisplay() {
+void proximityUX() {
+    if (sensor_mode == 0) {
+        rearProximityCheck();
+    }
+    else if (sensor_mode == 1) {
+        forwardProximityCheck();
+    }
+}
+
+void displayProximity() {
+    // Timer counts will give us the # of clock cycles passed since it
+    // the timer started. Assuming the timers have a 1 MHz clock, this count will equal the
+    // microseconds (us), and the width of the echo signal. Then, divide by 58 to get
+    // distance in cm and display that to the LCD
+
+    // Calculate rear and forward proximity in cm
+    rear_distance = timerA0_count / 58;
+    forward_distance = timerA1_count / 58;
+
+    // Display to LCD
+    clearLCD();
+
+    if (sensor_mode == 0) {
+        // Rear
+        showInt(rear_distance);
+        showChar('R', pos1);
+    }
+    else if (sensor_mode == 1) {
+        //Forward
+        showInt(forward_distance);
+        showChar('F', pos1);
+    }
+}
+
+void sendTrigger() {
     // Set digital high on pin 2.7 (Trig)
     GPIO_setOutputHighOnPin(GPIO_PORT_P2, GPIO_PIN7);
 
@@ -77,14 +116,6 @@ void sendTriggerAndDisplay() {
 
     // ~30 ms delay to allow ultrasonic beams to be sent out
     __delay_cycles(60000);
-
-    // Read timer A count, which will give us the # of clock cycles passed since it
-    // stared. Assuming the timer has a 1 MHz clock, this count will equal the
-    // microseconds (us), and the width of the echo signal. Then, divide by 58 to get
-    // distance in cm and display that to the LCD
-    clearLCD();
-    rear_distance = timer_count / 58;
-    showInt(rear_distance);
 }
 
 void main(void)
@@ -133,7 +164,7 @@ void main(void)
     P1IE  = 0x00;
     P1IFG  = 0x00;
 
-    // Setup Timer A
+    // Setup Timer A and Timer B
     Init_TimerA_Continuous();
 
     // Set output pins
@@ -147,13 +178,18 @@ void main(void)
 
     // Set input pins
     GPIO_setAsInputPin(GPIO_PORT_P1, GPIO_PIN5);        // Rear Ultrasonic echo
+    GPIO_setAsInputPin(GPIO_PORT_P2, GPIO_PIN5);        // Forward Ultrasonic echo
     GPIO_setAsInputPin(GPIO_PORT_P1, GPIO_PIN2);        // Push button 1
     GPIO_setAsInputPin(GPIO_PORT_P2, GPIO_PIN6);        // Push button 2
 
     // ****************** Set interrupts ******************
-    // Forward ultrasonic echo interrupt
+    // Rear ultrasonic echo interrupt
     GPIO_enableInterrupt(GPIO_PORT_P1, GPIO_PIN5);
     GPIO_selectInterruptEdge(GPIO_PORT_P1, GPIO_PIN5, GPIO_LOW_TO_HIGH_TRANSITION);
+
+    // Forward ultrasonic echo interrupt
+    GPIO_enableInterrupt(GPIO_PORT_P2, GPIO_PIN5);
+    GPIO_selectInterruptEdge(GPIO_PORT_P2, GPIO_PIN5, GPIO_LOW_TO_HIGH_TRANSITION);
 
     // PB 1 interrupt to switch between user and setup mode
     GPIO_enableInterrupt(GPIO_PORT_P1, GPIO_PIN2);
@@ -163,25 +199,28 @@ void main(void)
     P2REN |= (BIT6);    // Enable resistance on P2.6 (PB 2)
 
     while (1) {
-        if (mode == 0) {
+        if (operation_mode == 0) {
             // User Mode
             GPIO_setOutputLowOnPin(GPIO_PORT_P1, GPIO_PIN0);   // LED mode indicator
 
-            sendTriggerAndDisplay();
-            rearProximityCheck();
+            sendTrigger();
+            displayProximity();
+            proximityUX();
 
             if (pb2press()) {
-            	beep(440, 500);
+                sensor_mode ^= 0x1;    // Switch sensor modes
+                beep(440, 500);
             }
         }
-        else if (mode == 1) {
+        else if (operation_mode == 1) {
             // Setup mode
             GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN0);    // LED mode indicator
 
-            sendTriggerAndDisplay();
+            sendTrigger();
+            displayProximity();
             turnOffLeds();
 
-            switch (setup_thres) {
+            switch (rear_setup_thres) {
                 case 0:
                     GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN4);	// Red LED
                     break;
@@ -197,10 +236,10 @@ void main(void)
 
             // Check to see if PB 2 was pressed
             if (pb2press()) {
-                switch (setup_thres) {
+                switch (rear_setup_thres) {
                     case 0:
                         rear_thres1 = rear_distance;
-                        setup_thres++;
+                        rear_setup_thres++;
                         break;
                     case 1:
                         if (rear_distance < rear_thres1) {
@@ -211,7 +250,7 @@ void main(void)
                         }
                         else {
                             rear_thres2 = rear_distance;
-                            setup_thres++;
+                            rear_setup_thres++;
                         }
 
                         break;
@@ -224,9 +263,9 @@ void main(void)
                         }
                         else {
                             rear_thres3 = rear_distance;
-                            // Done with setup, go back to user mode and reset setup_thres
-                            setup_thres = 0;
-                            mode = 0;
+                            // Done with setup, go back to user mode and reset rear_setup_thres
+                            rear_setup_thres = 0;
+                            operation_mode = 0;
                         }
 
                         break;
@@ -242,32 +281,32 @@ void main(void)
 #pragma vector=PORT2_VECTOR
 __interrupt void Port_2_ISR(void)
 {
-//    // Check if there is an interrupt flag on pin 5
-//    if (P2IFG & 0x20) {
-//        if (!(P2IES & 0x20)) {
-//            // Rising edge interrupt
-//
-//            // Reset and start timer A
-//            Timer_A_clear(TIMER_A0_BASE);
-//            Timer_A_startCounter(TIMER_A0_BASE, TIMER_A_CONTINUOUS_MODE);
-//
-//            // Change interrupt edge to falling
-//            P2IES |= 0x20;
-//        }
-//        else {
-//            // Falling edge interrupt
-//
-//            // Stop timer A
-//            Timer_A_stop(TIMER_A0_BASE);
-//
-//            // Read timer value
-//            timer_count = Timer_A_getCounterValue(TIMER_A0_BASE);
-//
-//            // Change interrupt edge to rising
-//            P2IES &= ~0x20;
-//        }
-//    }
-//    GPIO_clearInterrupt(GPIO_PORT_P2, GPIO_PIN5);
+    if (P2IFG & 0x20) {		// pin 5 (Forward echo)
+        if (!(P2IES & 0x20)) {
+            // Rising edge interrupt
+
+            // Reset and start timer A1
+            Timer_A_clear(TIMER_A1_BASE);
+            Timer_A_startCounter(TIMER_A1_BASE, TIMER_A_CONTINUOUS_MODE);
+
+            // Change interrupt edge to falling
+            P2IES |= 0x20;
+        }
+        else {
+            // Falling edge interrupt
+
+            // Stop timer A
+            Timer_A_stop(TIMER_A1_BASE);
+
+            // Read timer value
+            timerA1_count = Timer_A_getCounterValue(TIMER_A1_BASE);
+
+            // Change interrupt edge to rising
+            P2IES &= ~0x20;
+        }
+
+        GPIO_clearInterrupt(GPIO_PORT_P2, GPIO_PIN5);
+    }
 }
 
 #pragma vector=PORT1_VECTOR
@@ -291,7 +330,7 @@ __interrupt void Port_1_ISR(void)
             Timer_A_stop(TIMER_A0_BASE);
 
             // Read timer value
-            timer_count = Timer_A_getCounterValue(TIMER_A0_BASE);
+            timerA0_count = Timer_A_getCounterValue(TIMER_A0_BASE);
 
             // Change interrupt edge to rising
             P1IES &= ~0x20;
@@ -301,8 +340,8 @@ __interrupt void Port_1_ISR(void)
     else if (P1IFG & 0x4) { // pin 2 (PB 1)
         if (P1IES & 0x4) {
             // Falling edge interrupt
-            mode ^= 0x1;    // Switch modes
-            setup_thres = 0;    // Reset setup thres flag to make sure setup mode always starts at first threshold
+            operation_mode ^= 0x1;    // Switch modes
+            rear_setup_thres = 0;    // Reset setup thres flag to make sure setup mode always starts at first threshold
         }
         GPIO_clearInterrupt(GPIO_PORT_P1, GPIO_PIN2);
     }
@@ -318,6 +357,7 @@ void Init_TimerA_Continuous(void)
     initContParam.timerClear = TIMER_A_DO_CLEAR;
     initContParam.startTimer = false;
     Timer_A_initContinuousMode(TIMER_A0_BASE, &initContParam);
+    Timer_A_initContinuousMode(TIMER_A1_BASE, &initContParam);
 }
 
 void Init_GPIO(void)

@@ -36,7 +36,9 @@ void Init_ADC(void);
 void turnOffLeds();
 void forwardProximityCheck();
 void rearProximityCheck();
-void sendTriggerAndDisplay();
+void sendTrigger();
+void displayProximity();
+void proximityUX();
 
 Timer_A_outputPWMParam param; //Timer configuration data structure for PWM
 
