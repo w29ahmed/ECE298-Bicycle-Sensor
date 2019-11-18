@@ -33,10 +33,13 @@ void Init_UART(void);
 void Init_PWM(void);
 void Init_ADC(void);
 
+void errorBeep();
 void turnOffLeds();
-void forwardProximityCheck(int);
-void backProximityCheck(int);
-void sendTriggerAndDisplay();
+void forwardProximityCheck();
+void rearProximityCheck();
+void sendTrigger();
+void displayProximity();
+void proximityUX();
 
 Timer_A_outputPWMParam param; //Timer configuration data structure for PWM
 
