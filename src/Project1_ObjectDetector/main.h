@@ -33,6 +33,7 @@ void Init_UART(void);
 void Init_PWM(void);
 void Init_ADC(void);
 
+void errorBeep();
 void turnOffLeds();
 void forwardProximityCheck();
 void rearProximityCheck();

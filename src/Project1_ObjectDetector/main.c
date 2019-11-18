@@ -18,7 +18,7 @@ int rear_distance = 0;
 int forward_distance = 0;
 
 int operation_mode = 0;       	// 0 = User mode, 1 = Setup mode
-int sensor_mode = 1;			// 0 = Rear, 1 = Forward
+int sensor_mode = 0;			// 0 = Rear, 1 = Forward
 
 // Proximity thresholds (in cm)
 int rear_thres1 = 10;
@@ -27,18 +27,24 @@ int rear_thres3 = 30;
 int forward_thres1 = 20;
 int forward_thres2 = 40;
 
-int rear_setup_thres = 0;     // 0 = Red threshold, 1 = Orange threshold, 2 = Yellow threshold
+int rear_setup_thres = 0;     	// 0 = Red threshold, 1 = Orange threshold, 2 = Yellow threshold
+int forward_setup_thres = 0;	// 0 = Quadruple beep threshold, 1 = Double beep threshold
 
 int pb2_val = 1; // Active low
 
+void errorBeep() {
+    beep(261, 300);
+    beep(261, 300);
+}
+
 int pb2press() {
-	// Look for a falling edge
-	if (pb2_val == 1 && GPIO_getInputPinValue(GPIO_PORT_P2, GPIO_PIN6) == 0) {
-		pb2_val = 0;
-		return 1;
-	}
-	pb2_val = 1;
-	return 0;
+    // Look for a falling edge
+    if (pb2_val == 1 && GPIO_getInputPinValue(GPIO_PORT_P2, GPIO_PIN6) == 0) {
+        pb2_val = 0;
+        return 1;
+    }
+    pb2_val = 1;
+    return 0;
 }
 
 void turnOffLeds() {
@@ -66,7 +72,18 @@ void rearProximityCheck() {
 }
 
 void forwardProximityCheck() {
-
+    if (forward_distance <= forward_thres1) {
+        // Quadruple beep
+        beep(466, 250);
+        beep(466, 250);
+        beep(466, 250);
+        beep(466, 250);
+    }
+    else if (forward_distance <= forward_thres2) {
+        // Double beep
+        beep(440, 500);
+        beep(440, 500);
+    }
 }
 
 void proximityUX() {
@@ -195,85 +212,124 @@ void main(void)
     GPIO_enableInterrupt(GPIO_PORT_P1, GPIO_PIN2);
     GPIO_selectInterruptEdge(GPIO_PORT_P1, GPIO_PIN2, GPIO_HIGH_TO_LOW_TRANSITION);
 
+    // PB 2 interrupt to switch between forward and rear sensors
+    GPIO_enableInterrupt(GPIO_PORT_P2, GPIO_PIN6);
+    GPIO_selectInterruptEdge(GPIO_PORT_P2, GPIO_PIN6, GPIO_HIGH_TO_LOW_TRANSITION);
+
     P1REN |= (BIT2);     // Enable resistance on P1.2 (PB 1)
     P2REN |= (BIT6);    // Enable resistance on P2.6 (PB 2)
 
     while (1) {
         if (operation_mode == 0) {
             // User Mode
-            GPIO_setOutputLowOnPin(GPIO_PORT_P1, GPIO_PIN0);   // LED mode indicator
+            GPIO_setOutputLowOnPin(GPIO_PORT_P1, GPIO_PIN0);   // LED operation mode indicator
 
             sendTrigger();
             displayProximity();
             proximityUX();
-
-            if (pb2press()) {
-                sensor_mode ^= 0x1;    // Switch sensor modes
-                beep(440, 500);
-            }
         }
         else if (operation_mode == 1) {
             // Setup mode
-            GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN0);    // LED mode indicator
+            GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN0);    // LED operation mode indicator
 
             sendTrigger();
             displayProximity();
             turnOffLeds();
 
-            switch (rear_setup_thres) {
-                case 0:
-                    GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN4);	// Red LED
-                    break;
-                case 1:
-                    GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN3);	// Orange LED
-                    break;
-                case 2:
-                    GPIO_setOutputHighOnPin(GPIO_PORT_P5, GPIO_PIN0);	// Yellow LED
-                    break;
-                default:
-                    break;
-            }
-
-            // Check to see if PB 2 was pressed
-            if (pb2press()) {
+            if (sensor_mode == 0) {
+                // Rear setup
                 switch (rear_setup_thres) {
                     case 0:
-                        rear_thres1 = rear_distance;
-                        rear_setup_thres++;
+                        GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN4);	// Red LED
                         break;
                     case 1:
-                        if (rear_distance < rear_thres1) {
-                            // Don't allow user to set a threshold lower than the previous one - doesn't make any sense
-                            // Beep twice to let user know they can't do this
-                            beep(440, 500);
-                            beep(440, 500);
-                        }
-                        else {
-                            rear_thres2 = rear_distance;
-                            rear_setup_thres++;
-                        }
-
+                        GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN3);	// Orange LED
                         break;
                     case 2:
-                        if (rear_distance < rear_thres2) {
-                            // Don't allow user to set a threshold lower than the previous one - doesn't make any sense
-                            // Beep twice to let user know they can't do this
-                            beep(440, 500);
-                            beep(440, 500);
-                        }
-                        else {
-                            rear_thres3 = rear_distance;
-                            // Done with setup, go back to user mode and reset rear_setup_thres
-                            rear_setup_thres = 0;
-                            operation_mode = 0;
-                        }
-
+                        GPIO_setOutputHighOnPin(GPIO_PORT_P5, GPIO_PIN0);	// Yellow LED
                         break;
                     default:
                         break;
                 }
-            }
 
+                // Check to see if PB 2 was pressed
+                if (pb2press()) {
+                    switch (rear_setup_thres) {
+                        case 0:
+                            rear_thres1 = rear_distance;
+                            rear_setup_thres++;
+                            break;
+                        case 1:
+                            if (rear_distance < rear_thres1) {
+                                // Don't allow user to set a threshold lower than the previous one - doesn't make any sense
+                                // Beep twice to let user know they can't do this
+                                errorBeep();
+                            }
+                            else {
+                                rear_thres2 = rear_distance;
+                                rear_setup_thres++;
+                            }
+
+                            break;
+                        case 2:
+                            if (rear_distance < rear_thres2) {
+                                // Don't allow user to set a threshold lower than the previous one - doesn't make any sense
+                                // Beep twice to let user know they can't do this
+                                errorBeep();
+                            }
+                            else {
+                                rear_thres3 = rear_distance;
+                                // Done with setup, go back to user mode and reset rear_setup_thres
+                                rear_setup_thres = 0;
+                                operation_mode = 0;
+                            }
+
+                            break;
+                        default:
+                            break;
+                    }
+                }
+            }
+            else if (sensor_mode == 1) {
+                // Forward setup
+
+                switch (forward_setup_thres) {
+                    case 0:
+                        GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN4);	// Red LED
+                        break;
+                    case 1:
+                        GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN3);	// Orange LED
+                        break;
+                    default:
+                        break;
+                }
+
+                // Check to see if PB 2 was pressed
+                if (pb2press()) {
+                    switch (forward_setup_thres) {
+                        case 0:
+                            forward_thres1 = forward_distance;
+                            forward_setup_thres++;
+                            break;
+                        case 1:
+                            if (forward_distance < forward_thres1) {
+                                // Don't allow user to set a threshold lower than the previous one - doesn't make any sense
+                                // Beep twice to let user know they can't do this
+                                errorBeep();
+                            }
+                            else {
+                                forward_thres2 = forward_distance;
+                                // Done with setup, go back to user mode and reset forward_setup_thres
+                                forward_setup_thres = 0;
+                                operation_mode = 0;
+                                turnOffLeds();
+                            }
+                            break;
+                        default:
+                            break;
+                    }
+                }
+            }
         }
     }
 }
@@ -306,6 +362,14 @@ __interrupt void Port_2_ISR(void)
         }
 
         GPIO_clearInterrupt(GPIO_PORT_P2, GPIO_PIN5);
+    }
+    else if (P2IFG & 0x40) {	// pin 6 (PB 2)
+        // If in user mode
+        if (operation_mode == 0) {
+            turnOffLeds();
+            sensor_mode ^= 0x1;    // Switch sensor modes
+        }
+        GPIO_clearInterrupt(GPIO_PORT_P2, GPIO_PIN6);
     }
 }
 
@@ -341,7 +405,10 @@ __interrupt void Port_1_ISR(void)
         if (P1IES & 0x4) {
             // Falling edge interrupt
             operation_mode ^= 0x1;    // Switch modes
-            rear_setup_thres = 0;    // Reset setup thres flag to make sure setup mode always starts at first threshold
+
+            // Reset setup thres counters to ensure setup mode always starts with first threshold
+            rear_setup_thres = 0;
+            forward_setup_thres = 0;
         }
         GPIO_clearInterrupt(GPIO_PORT_P1, GPIO_PIN2);
     }
