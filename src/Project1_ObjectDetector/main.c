@@ -3,6 +3,7 @@
 #include "hal_LCD.h"
 #include "buzzer.h"
 
+// *********************************** Global variables ***********************************
 char ADCState = 0; //Busy state of the ADC
 int16_t ADCResult = 0; //Storage for the ADC conversion result
 
@@ -16,9 +17,6 @@ int rear_avg_distance = 0;
 int forward_distance_buf[3] = {0, 0, 0};
 int forward_current_index = 0;
 int forward_avg_distance = 0;
-
-//int rear_distance = 0;
-//int forward_distance = 0;
 
 int operation_mode = 0;       	// 0 = User mode, 1 = Setup mode
 int sensor_mode = 0;			// 0 = Rear, 1 = Forward
@@ -34,6 +32,7 @@ int rear_setup_thres = 0;     	// 0 = Red threshold, 1 = Orange threshold, 2 = Y
 int forward_setup_thres = 0;	// 0 = Quadruple beep threshold, 1 = Double beep threshold
 
 int pb2_val = 1; // Active low
+// *******************************************************************************************
 
 void errorBeep() {
     beep(261, 300);
@@ -108,30 +107,21 @@ void calculateAvgProximity() {
     rear_distance_buf[rear_current_index] = timerA0_count / 58;
     forward_distance_buf[forward_current_index] = timerA1_count / 58;
 
-    // Use a weighted average (Simpson's rule) to calculate average of the last 3 readings to reduce noise
-    // Simpson's rule: 1/6 * (f0 + 4f1 + f2)
-    rear_avg_distance = (1/6) * (rear_distance_buf[abs(rear_current_index - 2) % 3] +
-                                4 * rear_distance_buf[abs(rear_current_index - 1) % 3] +
-                                rear_distance_buf[rear_current_index]);
+    // Use a weighted average (from Simpson's rule) to calculate average of the last 3 readings to reduce noise
+    // (f0 + 4f1 + f2) / 6
+    rear_avg_distance = (rear_distance_buf[abs(rear_current_index - 2) % 3] +
+                        4 * rear_distance_buf[abs(rear_current_index - 1) % 3] +
+                        rear_distance_buf[rear_current_index]) / 6;
 
-    forward_avg_distance = (1/6) * (forward_distance_buf[abs(forward_current_index - 2) % 3] +
-                                    4 * forward_distance_buf[abs(forward_current_index - 1) % 3] +
-                                    forward_distance_buf[forward_current_index]);
+    forward_avg_distance = (forward_distance_buf[abs(forward_current_index - 2) % 3] +
+                           4 * forward_distance_buf[abs(forward_current_index - 1) % 3] +
+                           forward_distance_buf[forward_current_index]) / 6;
 
     rear_current_index = (rear_current_index + 1) % 3;
     forward_current_index = (forward_current_index + 1) % 3;
 }
 
 void displayProximity() {
-    // Timer counts will give us the # of clock cycles passed since it
-    // the timer started. Assuming the timers have a 1 MHz clock, this count will equal the
-    // microseconds (us), and the width of the echo signal. Then, divide by 58 to get
-    // distance in cm and display that to the LCD
-
-    // Calculate rear and forward proximity in cm
-//    rear_distance = timerA0_count / 58;
-//    forward_distance = timerA1_count / 58;
-
     calculateAvgProximity();
 
     // Display to LCD
@@ -139,13 +129,11 @@ void displayProximity() {
 
     if (sensor_mode == 0) {
         // Rear
-//        showInt(rear_distance);
         showInt(rear_avg_distance);
         showChar('R', pos1);
     }
     else if (sensor_mode == 1) {
         //Forward
-//        showInt(forward_distance);
         showInt(forward_avg_distance);
         showChar('F', pos1);
     }
@@ -250,6 +238,7 @@ void main(void)
     P1REN |= (BIT2);     // Enable resistance on P1.2 (PB 1)
     P2REN |= (BIT6);    // Enable resistance on P2.6 (PB 2)
 
+    // Main program loop
     while (1) {
         if (operation_mode == 0) {
             // User Mode
