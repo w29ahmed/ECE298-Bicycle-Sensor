@@ -424,7 +424,8 @@ __interrupt void Port_1_ISR(void)
     else if (P1IFG & 0x4) { // pin 2 (PB 1)
         if (P1IES & 0x4) {
             // Falling edge interrupt
-            operation_mode ^= 0x1;    // Switch modes
+            operation_mode ^= 0x1;    // Switch operation modes
+            turnOffLeds();
 
             // Reset setup thres counters to ensure setup mode always starts with first threshold
             rear_setup_thres = 0;
