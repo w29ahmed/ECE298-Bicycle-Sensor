@@ -3,19 +3,20 @@
 #include "hal_LCD.h"
 #include "buzzer.h"
 
-/*
- * This project contains some code samples that may be useful.
- *
- */
-
+// *********************************** Global variables ***********************************
 char ADCState = 0; //Busy state of the ADC
 int16_t ADCResult = 0; //Storage for the ADC conversion result
 
 uint16_t timerA0_count = 0;
 uint16_t timerA1_count = 0;
 
-int rear_distance = 0;
-int forward_distance = 0;
+int rear_distance_buf[3] = {0, 0, 0};
+int rear_current_index = 0;
+int rear_avg_distance = 0;
+
+int forward_distance_buf[3] = {0, 0, 0};
+int forward_current_index = 0;
+int forward_avg_distance = 0;
 
 int operation_mode = 0;       	// 0 = User mode, 1 = Setup mode
 int sensor_mode = 0;			// 0 = Rear, 1 = Forward
@@ -31,6 +32,7 @@ int rear_setup_thres = 0;     	// 0 = Red threshold, 1 = Orange threshold, 2 = Y
 int forward_setup_thres = 0;	// 0 = Quadruple beep threshold, 1 = Double beep threshold
 
 int pb2_val = 1; // Active low
+// *******************************************************************************************
 
 void errorBeep() {
     beep(261, 300);
@@ -57,13 +59,13 @@ void turnOffLeds() {
 void rearProximityCheck() {
     turnOffLeds();    // First turn all LEDs off
 
-    if (rear_distance <= rear_thres1) {
+    if (rear_avg_distance <= rear_thres1) {
         GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN4);   // Turn Red LED ON
     }
-    else if (rear_distance <= rear_thres2) {
+    else if (rear_avg_distance <= rear_thres2) {
         GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN3);   // Turn Orange LED ON
     }
-    else if (rear_distance <= rear_thres3) {
+    else if (rear_avg_distance <= rear_thres3) {
         GPIO_setOutputHighOnPin(GPIO_PORT_P5, GPIO_PIN0);   // Turn Yellow LED ON
     }
     else {
@@ -72,14 +74,14 @@ void rearProximityCheck() {
 }
 
 void forwardProximityCheck() {
-    if (forward_distance <= forward_thres1) {
+    if (forward_avg_distance <= forward_thres1) {
         // Quadruple beep
         beep(466, 250);
         beep(466, 250);
         beep(466, 250);
         beep(466, 250);
     }
-    else if (forward_distance <= forward_thres2) {
+    else if (forward_avg_distance <= forward_thres2) {
         // Double beep
         beep(440, 500);
         beep(440, 500);
@@ -95,27 +97,44 @@ void proximityUX() {
     }
 }
 
-void displayProximity() {
+void calculateAvgProximity() {
     // Timer counts will give us the # of clock cycles passed since it
     // the timer started. Assuming the timers have a 1 MHz clock, this count will equal the
     // microseconds (us), and the width of the echo signal. Then, divide by 58 to get
     // distance in cm and display that to the LCD
 
-    // Calculate rear and forward proximity in cm
-    rear_distance = timerA0_count / 58;
-    forward_distance = timerA1_count / 58;
+    // Calculate most recent distance readings in cm
+    rear_distance_buf[rear_current_index] = timerA0_count / 58;
+    forward_distance_buf[forward_current_index] = timerA1_count / 58;
+
+    // Use a weighted average (from Simpson's rule) to calculate average of the last 3 readings to reduce noise
+    // (f0 + 4f1 + f2) / 6
+    rear_avg_distance = (rear_distance_buf[abs(rear_current_index - 2) % 3] +
+                        4 * rear_distance_buf[abs(rear_current_index - 1) % 3] +
+                        rear_distance_buf[rear_current_index]) / 6;
+
+    forward_avg_distance = (forward_distance_buf[abs(forward_current_index - 2) % 3] +
+                           4 * forward_distance_buf[abs(forward_current_index - 1) % 3] +
+                           forward_distance_buf[forward_current_index]) / 6;
+
+    rear_current_index = (rear_current_index + 1) % 3;
+    forward_current_index = (forward_current_index + 1) % 3;
+}
+
+void displayProximity() {
+    calculateAvgProximity();
 
     // Display to LCD
     clearLCD();
 
     if (sensor_mode == 0) {
         // Rear
-        showInt(rear_distance);
+        showInt(rear_avg_distance);
         showChar('R', pos1);
     }
     else if (sensor_mode == 1) {
         //Forward
-        showInt(forward_distance);
+        showInt(forward_avg_distance);
         showChar('F', pos1);
     }
 }
@@ -219,6 +238,7 @@ void main(void)
     P1REN |= (BIT2);     // Enable resistance on P1.2 (PB 1)
     P2REN |= (BIT6);    // Enable resistance on P2.6 (PB 2)
 
+    // Main program loop
     while (1) {
         if (operation_mode == 0) {
             // User Mode
@@ -256,29 +276,29 @@ void main(void)
                 if (pb2press()) {
                     switch (rear_setup_thres) {
                         case 0:
-                            rear_thres1 = rear_distance;
+                            rear_thres1 = rear_avg_distance;
                             rear_setup_thres++;
                             break;
                         case 1:
-                            if (rear_distance < rear_thres1) {
+                            if (rear_avg_distance < rear_thres1) {
                                 // Don't allow user to set a threshold lower than the previous one - doesn't make any sense
                                 // Beep twice to let user know they can't do this
                                 errorBeep();
                             }
                             else {
-                                rear_thres2 = rear_distance;
+                                rear_thres2 = rear_avg_distance;
                                 rear_setup_thres++;
                             }
 
                             break;
                         case 2:
-                            if (rear_distance < rear_thres2) {
+                            if (rear_avg_distance < rear_thres2) {
                                 // Don't allow user to set a threshold lower than the previous one - doesn't make any sense
                                 // Beep twice to let user know they can't do this
                                 errorBeep();
                             }
                             else {
-                                rear_thres3 = rear_distance;
+                                rear_thres3 = rear_avg_distance;
                                 // Done with setup, go back to user mode and reset rear_setup_thres
                                 rear_setup_thres = 0;
                                 operation_mode = 0;
@@ -308,17 +328,17 @@ void main(void)
                 if (pb2press()) {
                     switch (forward_setup_thres) {
                         case 0:
-                            forward_thres1 = forward_distance;
+                            forward_thres1 = forward_avg_distance;
                             forward_setup_thres++;
                             break;
                         case 1:
-                            if (forward_distance < forward_thres1) {
+                            if (forward_avg_distance < forward_thres1) {
                                 // Don't allow user to set a threshold lower than the previous one - doesn't make any sense
                                 // Beep twice to let user know they can't do this
                                 errorBeep();
                             }
                             else {
-                                forward_thres2 = forward_distance;
+                                forward_thres2 = forward_avg_distance;
                                 // Done with setup, go back to user mode and reset forward_setup_thres
                                 forward_setup_thres = 0;
                                 operation_mode = 0;
@@ -404,7 +424,8 @@ __interrupt void Port_1_ISR(void)
     else if (P1IFG & 0x4) { // pin 2 (PB 1)
         if (P1IES & 0x4) {
             // Falling edge interrupt
-            operation_mode ^= 0x1;    // Switch modes
+            operation_mode ^= 0x1;    // Switch operation modes
+            turnOffLeds();
 
             // Reset setup thres counters to ensure setup mode always starts with first threshold
             rear_setup_thres = 0;
