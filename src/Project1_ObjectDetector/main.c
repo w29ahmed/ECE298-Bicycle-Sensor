@@ -277,8 +277,8 @@ void main(void)
                             rear_setup_thres++;
                             break;
                         case 1:
-                            if (rear_avg_distance < rear_thres1) {
-                                // Don't allow user to set a threshold lower than the previous one - doesn't make any sense
+                            if (rear_avg_distance <= rear_thres1) {
+                                // Don't allow user to set a threshold lower than or equal to the previous one - doesn't make any sense
                                 // Beep twice to let user know they can't do this
                                 errorBeep();
                             }
@@ -289,7 +289,7 @@ void main(void)
 
                             break;
                         case 2:
-                            if (rear_avg_distance < rear_thres2) {
+                            if (rear_avg_distance <= rear_thres2) {
                                 // Don't allow user to set a threshold lower than the previous one - doesn't make any sense
                                 // Beep twice to let user know they can't do this
                                 errorBeep();
@@ -329,7 +329,7 @@ void main(void)
                             forward_setup_thres++;
                             break;
                         case 1:
-                            if (forward_avg_distance < forward_thres1) {
+                            if (forward_avg_distance <= forward_thres1) {
                                 // Don't allow user to set a threshold lower than the previous one - doesn't make any sense
                                 // Beep twice to let user know they can't do this
                                 errorBeep();
