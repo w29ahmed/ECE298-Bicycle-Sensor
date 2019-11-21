@@ -175,10 +175,7 @@ void main(void)
 
     // Initializations - see functions for more detail
     Init_GPIO();    //Sets all pins to output low as a default
-    Init_PWM();     //Sets up a PWM output
-    Init_ADC();     //Sets up the ADC to sample
     Init_Clock();   //Sets up the necessary system clocks
-    Init_UART();    //Sets up an echo over a COM port
     Init_LCD();     //Sets up the LaunchPad LCD display
 
      /*
