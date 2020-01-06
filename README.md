@@ -12,7 +12,7 @@ The hardware design involves a printed circuit board interfaced with 2 ultrasoni
 ![](images/pcb_design.png)
 
 ## Software Design
-The software was designed as a state machine, with state transitions facilitated through GPIO interrupts. The distance in cm is displayed on an LCD from one ultrasonic sensor, from either the forward or rear facing direction, and the direction can be toggled through a button press. Each direction has configurable proximity thresholds, the rear thresholds are indicated through LEDs, and the forward thresholds through a piezoelectric speaker. 
+The software was designed as a state machine, with state transitions facilitated through GPIO interrupts. The distance from either the forward or rear facing direction is displayed in centimeters on an LCD, and the direction can be toggled through a button press. Each direction has configurable proximity thresholds, the rear thresholds are indicated through LEDs, and the forward thresholds through a piezoelectric speaker.
 
 ![](images/software_design.png)
 
