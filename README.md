@@ -1,8 +1,6 @@
 # Bicycle Sensor
 ![](images/prototype.jpg)
 
-Source code and project files for a Bicycle Sensor project built as apart of ECE 298 - Instrumentation and Prototyping in the Fall 2019 term at the University of Waterloo.
-
 ## Problem Statement
 Bicyclists often have difficulty navigating roads, as roads are dominated by automotive vehicles and is a dangerous environment for a slow-moving vehicle like a bicycle. Bicyclists don’t take up much space on the road and can be hard to spot in low visibility conditions such as fog or low light. Due to the lack of light intensity on a bicycle, bicyclists themselves also may have a hard time spotting obstacles in certain conditions. The aim is to design a system that involves two ultrasonic sensors, one for the forward, and one for the rear direction, that can alert the bicyclist and others on the road to oncoming danger.
 
