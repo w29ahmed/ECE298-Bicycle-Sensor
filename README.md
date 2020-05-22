@@ -7,7 +7,7 @@ Bicyclists often have difficulty navigating roads, as roads are dominated by aut
 ## Hardware Design
 The hardware design involves a printed circuit board interfaced with 2 ultrasonic sensors, 4 LEDs, and a piezoelectric buzzer. The development environment this board was created for is the [Texas Instruments MSP430](http://www.ti.com/microcontrollers/msp430-ultra-low-power-mcus/overview.html) family of MCUs. The exact MCU used for this project is the [MSP430FR4133](http://www.ti.com/product/MSP430FR4133).
 
-[DipTrace](https://diptrace.com/) was used for the circuit schematic and pcb design, the files can be found under the 'Prototype Design' directory.
+[DipTrace](https://diptrace.com/) was used for the circuit schematic and PCB design, the files can be found under the 'Prototype Design' directory.
 ![](images/circuit_schematic.png)
 ![](images/pcb_design.png)
 
